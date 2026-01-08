@@ -2,6 +2,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Message, QuizQuestion, UserState, PetType } from "./types";
 
+/**
+ * Gets the personality vibe based on pet type.
+ */
 const getSpeciesVibe = (type: PetType) => {
   switch (type) {
     case PetType.RAVEN: return "Ты — темный, таинственный стратег. Видишь жизнь как великую шахматную партию.";
@@ -12,10 +15,14 @@ const getSpeciesVibe = (type: PetType) => {
   }
 };
 
+/**
+ * Chats with the AI buddy using Gemini.
+ */
 export const chatWithBuddy = async (
   messages: Message[], 
   userState: UserState
 ) => {
+  // Use process.env.API_KEY directly for initialization
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const history = messages.map(m => ({
     role: m.role,
@@ -35,28 +42,39 @@ export const chatWithBuddy = async (
     - НИКОГДА не выходи из роли. Ты — ${userState.petType}.
     - Если пользователь ленится, слегка высмей его, но дай задание.
     - Общайся ИСКЛЮЧИТЕЛЬНО на русском языке.
-    - Если пользователь делится фактом о себе, запомни его и тонко упомяни позже.
     - Используй эмодзи, подходящие твоему виду.
-    - Ты — компаньон в Telegram Mini App. Твоя цель: помочь пользователю развить интеллект и заработать монеты.
+    - Ты — компаньон в Telegram Mini App.
   `;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: history as any,
-    config: {
-      systemInstruction,
-      temperature: 0.9,
-    },
-  });
-
-  return response.text;
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: history as any,
+      config: {
+        systemInstruction,
+        temperature: 0.9,
+      },
+    });
+    // Access the .text property directly
+    return response.text;
+  } catch (error: any) {
+    console.error("Gemini Error:", error);
+    if (error.message?.includes("SAFETY")) {
+      return "Фу, как грубо. Я не буду отвечать на такие низменные темы. Давай лучше займемся наукой.";
+    }
+    throw error;
+  }
 };
 
+/**
+ * Generates a quiz question based on user state.
+ */
 export const generateQuiz = async (userState: UserState): Promise<QuizQuestion> => {
+  // Use process.env.API_KEY directly for initialization
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Сгенерируй сложный, но интересный вопрос викторины для пользователя с уровнем интеллекта ${userState.level}. 
+    contents: `Сгенерируй не очень сложный, но интересный вопрос викторины для пользователя с уровнем интеллекта ${userState.level}. 
     Темы: наука, история или программирование. Вопрос и ответы должны быть на РУССКОМ языке.`,
     config: {
       responseMimeType: "application/json",
@@ -79,13 +97,15 @@ export const generateQuiz = async (userState: UserState): Promise<QuizQuestion> 
   });
 
   try {
-    return JSON.parse(response.text || '{}') as QuizQuestion;
+    // Access the .text property directly and parse the JSON
+    const text = response.text || '{}';
+    return JSON.parse(text) as QuizQuestion;
   } catch (e) {
     return {
       question: "Какова сложность бинарного поиска?",
       options: ["O(n)", "O(log n)", "O(n^2)", "O(1)"],
       correctIndex: 1,
-      explanation: "Бинарный поиск каждый раз делит интервал поиска пополам, что приводит к логарифмическому времени."
+      explanation: "Бинарный поиск каждый раз делит интервал поиска пополам."
     };
   }
 };
